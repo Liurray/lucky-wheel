@@ -1,0 +1,15 @@
+{
+  "name": "lucky-wheel",
+  "version": "1.0.0",
+  "description": "多人即時同樂抽獎轉盤",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
