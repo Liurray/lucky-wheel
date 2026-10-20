@@ -66,6 +66,7 @@
     animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
   #result .who{color:var(--muted);margin-bottom:8px}
   #result .prize{font-size:38px;font-weight:800;color:var(--accent);word-break:break-word}
+  #result .again{margin-top:12px;color:var(--ok);font-weight:700;font-size:18px}
   @keyframes pop{from{transform:scale(.6);opacity:0}}
   #conn{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:var(--accent2);color:#fff;padding:8px 16px;border-radius:99px;font-size:14px;z-index:20}
 </style>
@@ -119,12 +120,24 @@
   </div>
 </div>
 
-<div id="result" class="hidden"><div class="box"><div class="who" id="resWho"></div><div class="prize" id="resPrize"></div></div></div>
+<div id="result" class="hidden"><div class="box"><div class="who" id="resWho"></div><div class="prize" id="resPrize"></div><div class="again hidden" id="resAgain"></div></div></div>
 <div id="conn" class="hidden">連線中斷,重新連線中…</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let ws, me = null, room = null, S = null, rot = 0, animating = false, wantJoin = null, lastTurn = null;
+
+// 這台裝置/瀏覽器專屬的識別碼:斷線後用同一個 ID 重進時,伺服器靠它認出是你本人
+const TOKEN = (function () {
+  let t = null;
+  try { t = localStorage.getItem('lw_token'); } catch (e) {}
+  if (!t) {
+    t = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    try { localStorage.setItem('lw_token', t); } catch (e) {}
+  }
+  return t;
+})();
 
 // ---------- 連線 ----------
 function connect() {
@@ -132,10 +145,14 @@ function connect() {
   ws = new WebSocket(proto + '://' + location.host);
   ws.onopen = () => {
     $('conn').classList.add('hidden');
-    if (wantJoin) ws.send(JSON.stringify({ type: 'join', ...wantJoin }));
+    if (wantJoin) ws.send(JSON.stringify({ type: 'join', ...wantJoin, token: TOKEN }));
   };
   ws.onclose = () => {
-    if (wantJoin) $('conn').classList.remove('hidden');
+    if (wantJoin) {
+      $('conn').textContent = '連線中斷,重新連線中…';
+      $('conn').classList.remove('hidden');
+    }
+    if (me && !wantJoin) return; // 被其他視窗接手了,不再重連
     setTimeout(connect, 1500);
   };
   ws.onmessage = (e) => handle(JSON.parse(e.data));
@@ -147,6 +164,11 @@ function handle(m) {
     if (me) { wantJoin = null; location.reload(); return; }
     wantJoin = null;
     $('joinErr').textContent = m.message;
+  } else if (m.type === 'kicked') {
+    // 同一個 ID 在別的視窗/裝置接上了 → 這個視窗停止自動重連,避免兩邊互踢
+    wantJoin = null;
+    $('conn').textContent = m.message + ',重新整理頁面可再加入';
+    $('conn').classList.remove('hidden');
   } else if (m.type === 'joined') {
     me = m.name; room = m.room;
     try { localStorage.setItem('lw', JSON.stringify({ name: me, room })); } catch (e) {}
@@ -217,16 +239,18 @@ function spinTo(m) {
       rot = ((target % TWO) + TWO) % TWO;
       animating = false;
       draw();
-      showResult(m.player, m.prize);
+      showResult(m.player, m.prize, m.again);
       render();
     }
   })(t0);
 }
 
 let resTimer;
-function showResult(who, prize) {
+function showResult(who, prize, again) {
   $('resWho').textContent = who + ' 抽中了';
-  $('resPrize').textContent = prize;
+  $('resPrize').textContent = again ? prize + '!' : prize;
+  $('resAgain').classList.toggle('hidden', !again);
+  $('resAgain').textContent = who === me ? '再轉一次吧!' : who + ' 可以再轉一次';
   $('result').classList.remove('hidden');
   clearTimeout(resTimer);
   resTimer = setTimeout(() => $('result').classList.add('hidden'), 3500);
@@ -316,7 +340,7 @@ function doJoin() {
   if (!name || !r) { $('joinErr').textContent = '請填寫房間代碼與 ID'; return; }
   $('joinErr').textContent = '';
   wantJoin = { name, room: r };
-  send({ type: 'join', ...wantJoin });
+  send({ type: 'join', ...wantJoin, token: TOKEN });
 }
 $('joinBtn').onclick = doJoin;
 [$('nameIn'), $('roomIn')].forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); }));
