@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'boss-host-lock-v6';
+const APP_VERSION = 'boss-chase-stone-v9';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
 const SPIN_MS = 4000;
@@ -36,11 +36,36 @@ function mainWheelFor(count) {
   return calculate((lo+hi)/2);
 }
 const SPECIAL = [
-  { key: 'virtual', label: '解鎖 +1 顆虛寶', weight: 40 },
-  { key: '500', label: '獎池 +500 分', weight: 30 },
-  { key: '1000', label: '獎池 +1,000 分', weight: 20 },
-  { key: '2000', label: '獎池 +2,000 分', weight: 10 }
+  { key: 'virtual', label: '解鎖 +1 顆天賞石', weight: 40 },
+  { key: '1000', label: '總傷害 +1,000', weight: 30 },
+  { key: '2000', label: '總傷害 +2,000', weight: 20 },
+  { key: '3000', label: '總傷害 +3,000', weight: 10 }
 ];
+// 後半場追擊：僅改變後續抽中機率，所有分數與鎖定門檻保持不變。
+function wheelForTargetMean(base, target) {
+  const min=base[0].score,max=base[base.length-1].score;
+  const desired=Math.max(min+1,Math.min(max-1,target));
+  const weightsAt=lambda=>{const raw=base.map(x=>x.weight*Math.exp(Math.max(-600,Math.min(600,lambda*(x.score-1980)/1000))));const sum=raw.reduce((a,b)=>a+b,0);return base.map((x,i)=>({...x,weight:raw[i]/sum*100}));};
+  let lo=-4,hi=4;
+  for(let i=0;i<65;i++){const mid=(lo+hi)/2;const w=weightsAt(mid);const mean=w.reduce((v,x)=>v+x.score*x.weight/100,0);if(mean<desired)lo=mid;else hi=mid;}
+  return weightsAt((lo+hi)/2);
+}
+function chaseStatus(r){
+  if(!r.started)return {active:false};
+  const total=r.lockedCount||0,done=(r.lockedRoster||[]).filter(name=>!!r.draws[name]).length;
+  const first=r.lockedThresholds.card490,second=r.lockedThresholds.purple;
+  const remaining=Math.max(0,total-done),gap=Math.max(0,first-r.pool);
+  // 僅首次進入追擊條件時啟動，直到活動結束，避免機率來回跳動。
+  if(!r.chaseActivated && done>total/2 && gap>first/2 && remaining>0){r.chaseActivated=true;save();}
+  if(!r.chaseActivated)return {active:false,done,total,gap};
+  const target=Math.round((first+second)/2);
+  const expectedBonusPerTurn=0.15*(0.3*1000+0.2*2000+0.1*3000+0.4*0); // 保守估計，石頭不計傷害
+  const needed=(target-r.pool)/Math.max(1,remaining)-expectedBonusPerTurn;
+  // 僅在追擊啟動後調整，並確保不會低於開場基準平均傷害。
+  const baseMean=r.lockedWheel.reduce((v,x)=>v+x.score*x.weight/100,0);
+  const targetMean=Math.max(baseMean,needed);
+  return {active:true,done,total,gap,target,remaining,mainWheel:wheelForTargetMean(r.lockedWheel,targetMean)};
+}
 const SPECIAL_CHANCE = 15, INITIAL_ITEMS = 3, MAX_ITEMS = 6, ITEM_COST = 5000, BUDGET = 100000;
 const TIERS = [
   { key: '170', min: 0, label: '170 元儲值卡', cost: 170 },
@@ -58,16 +83,16 @@ try {
       draws: old.draws && typeof old.draws === 'object' ? old.draws : {},
       history: Array.isArray(old.history) ? old.history : [], pool: Number(old.pool) || 0,
       virtualItems: Number.isInteger(old.virtualItems) ? old.virtualItems : INITIAL_ITEMS,
-      queue: [], banned: Array.isArray(old.banned)?old.banned:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null
+      queue: [], banned: Array.isArray(old.banned)?old.banned:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null, chaseActivated:!!old.chaseActivated
     });
   }
 } catch {}
 function getRoom(code) {
-  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null });
+  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null, chaseActivated:false });
   return rooms.get(code);
 }
 let saveTimer;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster,chaseActivated:r.chaseActivated}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
 const conns = new Map();
 const timing = new Map();
 function online(code, name) { for (const c of conns.values()) if (c.room === code && c.name === name) return true; return false; }
@@ -82,10 +107,10 @@ function oldCurrentTierUnused(pool) { let t = TIERS[0]; for (const tier of TIERS
 function affordableTier(pool, items, count, limits=thresholds(count)) { const candidate = currentTier(pool, count, limits); const cost = tier => count * tier.cost + items * ITEM_COST; let idx = TIERS.findIndex(t => t.key === candidate.key); while (idx > 0 && cost(TIERS[idx]) > BUDGET) idx--; return { candidate, final: TIERS[idx], cost: cost(TIERS[idx]), budget: BUDGET, withinBudget: cost(candidate) <= BUDGET }; }
 function snapshot(code) {
   const r = rooms.get(code); const players = r.players.map(p => ({ name:p.name, online:online(code,p.name), drawn:!!r.draws[p.name], score:r.draws[p.name]?.mainScore ?? null }));
-  const count = r.started ? r.lockedCount : players.length; const nextPlayer = r.started ? (r.lockedRoster||[]).map(name=>players.find(p=>p.name===name)).find(p=>p&&!p.drawn) : null; const limits = r.started ? r.lockedThresholds : thresholds(count); const tier = currentTier(r.pool, count, limits), budget = affordableTier(r.pool, r.virtualItems, count, limits);
+  const count = r.started ? r.lockedCount : players.length; const nextPlayer = r.started ? (r.lockedRoster||[]).map(name=>players.find(p=>p.name===name)).find(p=>p&&!p.drawn) : null; const limits = r.started ? r.lockedThresholds : thresholds(count); const chase=chaseStatus(r); const tier = currentTier(r.pool, count, limits), budget = affordableTier(r.pool, r.virtualItems, count, limits);
   return { type:'state', room:code, players, pool:r.pool, virtualItems:r.virtualItems, initialVirtualItems:INITIAL_ITEMS, maxVirtualItems:MAX_ITEMS,
     completed:players.filter(p=>p.drawn).length, total:count, registered:players.length, started:r.started, lockedCount:r.lockedCount, currentTurn:nextPlayer?.name||null, turnNumber:nextPlayer?players.indexOf(nextPlayer)+1:null, thresholds:limits, tier, affordableTier:budget.final, estimatedCost:budget.cost, withinBudget:budget.withinBudget,
-    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:r.started?r.lockedWheel:mainWheelFor(count), probabilityFactor:PROBABILITY_FACTOR, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE };
+    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:r.started?(chase.active?chase.mainWheel:r.lockedWheel):mainWheelFor(count), chaseMode:chase.active, chaseTarget:chase.target||null, probabilityFactor:PROBABILITY_FACTOR, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE };
 }
 function broadcast(code, msg) { const data=JSON.stringify(msg || snapshot(code)); for(const [ws,c] of conns) if(c.room===code && ws.readyState===1) ws.send(data); }
 function send(ws,msg){ if(ws.readyState===1) ws.send(JSON.stringify(msg)); }
@@ -93,7 +118,7 @@ const server=http.createServer((req,res)=>{
  const url=(req.url||'/').split('?')[0];
  if(url==='/healthz'){res.writeHead(200);return res.end('ok');}
  if(url==='/version'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({version:APP_VERSION,ui:'boss-battle',dynamicProbability:true}));}
- const name={'/':'index.html','/index.html':'index.html','/fortune-character.png':'fortune-character.png','/boss-background.png':'boss-background.png'}[url];
+ const name={'/':'index.html','/index.html':'index.html','/fortune-character.png':'fortune-character.png','/boss-background.png':'boss-background.png','/stone-reveal.png':'stone-reveal.png'}[url];
  if(!name){res.writeHead(404);return res.end('not found');}
  fs.readFile(path.join(__dirname,'public',name),(e,data)=>{
   if(e){res.writeHead(500);return res.end('server error');}
@@ -103,12 +128,12 @@ const server=http.createServer((req,res)=>{
 const wss=new WebSocketServer({server,maxPayload:16384});
 function weightedPick(items) { const total=items.reduce((s,x)=>s+x.weight,0); let n=crypto.randomInt(1000000000)/1000000000*total; for(let i=0;i<items.length;i++){n-=items[i].weight;if(n<0)return i;}return items.length-1; }
 function join(ws,m){const code=String(m.room||'').trim().replace(/[^\w一-龥-]/g,'').slice(0,20);const name=String(m.name||'').trim().slice(0,12);const token=String(m.token||'').slice(0,64);if(!code||!name)return send(ws,{type:'error',message:'請填寫活動代碼與暱稱'});const invite=String(m.inviteCode||'').trim();const host=invite.length>0 && invite===HOST_INVITE_CODE;if(invite&&!host)return send(ws,{type:'error',message:'主持人邀請碼不正確'});const r=getRoom(code);let p=r.players.find(x=>x.name===name);if(r.started&&!p)return send(ws,{type:'error',message:'活動已開始，登記名單已鎖定，無法新增玩家'});const prev=conns.get(ws);if(p&&p.token&&p.token!==token)return send(ws,{type:'error',message:'此 ID 已被登記，請使用原本的瀏覽器進入，或更換 ID'});if(r.banned?.includes(token))return send(ws,{type:'error',message:'你已被主持人移出房間，無法重新登記'});if(!p){p={name,token};r.players.push(p);}else if(token)p.token=token;conns.set(ws,{room:code,name,host});send(ws,{type:'joined',name,room:code,drawn:!!r.draws[name],result:r.draws[name]||null,host});save();broadcast(code);}
-function spin(ws,c,r){if(!r.started)return send(ws,{type:'error',message:'請等待主持人開始活動'});const next=(r.lockedRoster||[]).map(name=>r.players.find(p=>p.name===name)).find(p=>p&&!r.draws[p.name]);if(!next||(next.name!==c.name&&!c.host))return send(ws,{type:'error',message:next?'尚未輪到你，目前輪到 '+next.name:'所有登記玩家皆已抽完'});if(r.spinning||r.processing)return send(ws,{type:'error',message:'上一位玩家正在抽獎，請稍候'});if(r.draws[next.name])return send(ws,{type:'error',message:'你已經抽過一次，不能重複抽獎'});if(r.queue.some(j=>j.name===next.name)|| (r.activeJob&&r.activeJob.name===next.name))return send(ws,{type:'error',message:'你的抽獎正在處理中，請稍候'});const wheel=r.lockedWheel;const job={name:next.name,mainWheel:wheel,mainIndex:weightedPick(wheel),specialTriggered:crypto.randomInt(100)<SPECIAL_CHANCE, specialIndex:null};if(job.specialTriggered)job.specialIndex=weightedPick(SPECIAL);r.queue.push(job);send(ws,{type:'queued',message:'輪到你了！正在啟動輪盤'});processQueue(c.room);}
+function spin(ws,c,r){if(!r.started)return send(ws,{type:'error',message:'請等待主持人開始活動'});const next=(r.lockedRoster||[]).map(name=>r.players.find(p=>p.name===name)).find(p=>p&&!r.draws[p.name]);if(!next||(next.name!==c.name&&!c.host))return send(ws,{type:'error',message:next?'尚未輪到你，目前輪到 '+next.name:'所有登記玩家皆已抽完'});if(r.spinning||r.processing)return send(ws,{type:'error',message:'上一位玩家正在抽獎，請稍候'});if(r.draws[next.name])return send(ws,{type:'error',message:'你已經抽過一次，不能重複抽獎'});if(r.queue.some(j=>j.name===next.name)|| (r.activeJob&&r.activeJob.name===next.name))return send(ws,{type:'error',message:'你的抽獎正在處理中，請稍候'});const chase=chaseStatus(r);const wheel=chase.active?chase.mainWheel:r.lockedWheel;const job={name:next.name,mainWheel:wheel,mainIndex:weightedPick(wheel),specialTriggered:crypto.randomInt(100)<SPECIAL_CHANCE, specialIndex:null};if(job.specialTriggered)job.specialIndex=weightedPick(SPECIAL);r.queue.push(job);send(ws,{type:'queued',message:'輪到你了！正在啟動輪盤'});processQueue(c.room);}
 function processQueue(code){const r=rooms.get(code);if(!r||r.processing||!r.queue.length)return;r.processing=true;r.spinning=true;const job=r.queue.shift();r.activeJob=job;const main=job.mainWheel[job.mainIndex];const drawId=crypto.randomUUID();broadcast(code,{type:'mainSpin',drawId,player:job.name,index:job.mainIndex,score:main.score,duration:SPIN_MS});broadcast(code);
  function finish(){if(r.activeJob!==job||job.finished)return;job.finished=true;clearTimeout(job.ackTimeout);r.pool+=main.score+(job.specialScore||0);if(job.unlockItem)r.virtualItems++;clearTimeout(job.revealTimeout);clearTimeout(job.spinTimeout);const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool,virtualItems:r.virtualItems,time:Date.now()};r.draws[job.name]=result;r.history.unshift(result);if(r.history.length>500)r.history.length=500;r.spinning=false;r.processing=false;r.activeJob=null;save();broadcast(code,{type:'drawComplete',result});broadcast(code);processQueue(code);}
  function readyToAcknowledge(){if(r.activeJob!==job||job.awaitingAck)return;job.awaitingAck=true;const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool+main.score+(job.specialScore||0),virtualItems:r.virtualItems+(job.unlockItem?1:0)};broadcast(code,{type:'resultReady',result});job.finishAck=finish;job.ackTimeout=setTimeout(finish,45000);}
  job.reveal=()=>{if(r.activeJob!==job||job.revealed||!job.awaitingReveal)return;job.revealed=true;job.awaitingReveal=false;clearTimeout(job.revealTimeout);job.awaitingSpecialSpin=true;broadcast(code,{type:'specialReady',drawId,player:job.name});job.spinTimeout=setTimeout(()=>job.startSpecial?.(),45000);};
- job.startSpecial=()=>{if(r.activeJob!==job||!job.awaitingSpecialSpin||job.specialStarted)return;job.specialStarted=true;job.awaitingSpecialSpin=false;clearTimeout(job.spinTimeout);const s=SPECIAL[job.specialIndex];let specialScore=0,virtualBefore=r.virtualItems,converted=false,displayLabel=s.label;if(s.key==='virtual'){if(r.virtualItems<MAX_ITEMS){ /* reserved until confirmation */ }else{specialScore=500;converted=true;displayLabel='虛寶已達上限，改為獎池 +500 分';}}else specialScore=Number(s.key);job.unlockItem=s.key==='virtual'&&!converted;job.specialScore=specialScore;job.specialLabel=displayLabel;job.converted=converted;broadcast(code,{type:'specialSpin',drawId,player:job.name,index:job.specialIndex,label:s.label,displayLabel,virtualBefore,virtualAfter:r.virtualItems+(job.unlockItem?1:0),score:specialScore,converted,duration:SPIN_MS});broadcast(code);setTimeout(()=>readyToAcknowledge(),SPIN_MS+SPIN_GRACE_MS);};
+ job.startSpecial=()=>{if(r.activeJob!==job||!job.awaitingSpecialSpin||job.specialStarted)return;job.specialStarted=true;job.awaitingSpecialSpin=false;clearTimeout(job.spinTimeout);const s=SPECIAL[job.specialIndex];let specialScore=0,virtualBefore=r.virtualItems,converted=false,displayLabel=s.label;if(s.key==='virtual'){if(r.virtualItems<MAX_ITEMS){ /* reserved until confirmation */ }else{specialScore=1000;converted=true;displayLabel='天賞石已達上限，改為總傷害 +1,000';}}else specialScore=Number(s.key);job.unlockItem=s.key==='virtual'&&!converted;job.specialScore=specialScore;job.specialLabel=displayLabel;job.converted=converted;broadcast(code,{type:'specialSpin',drawId,player:job.name,index:job.specialIndex,label:s.label,displayLabel,virtualBefore,virtualAfter:r.virtualItems+(job.unlockItem?1:0),score:specialScore,converted,duration:SPIN_MS});broadcast(code);setTimeout(()=>{if(job.unlockItem){broadcast(code,{type:'stoneReveal',drawId,player:job.name,duration:3000});setTimeout(readyToAcknowledge,3000);}else readyToAcknowledge();},SPIN_MS+SPIN_GRACE_MS);};
  setTimeout(()=>{if(job.specialTriggered){job.awaitingReveal=true;broadcast(code,{type:'specialIntro',drawId,player:job.name});job.revealTimeout=setTimeout(job.reveal,45000);}else readyToAcknowledge();},SPIN_MS+SPIN_GRACE_MS);
 }
 function hostLogin(ws,m,c){
@@ -126,6 +151,6 @@ function kickPlayer(ws,m,c,r){
   for(const [client,info] of conns){if(info.room===c.room&&info.name===name){send(client,{type:'kicked',message:'你已被主持人移出房間'});conns.delete(client);client.close(4001,'Removed by host');}}
   save();broadcast(c.room);
 }
-wss.on('connection',ws=>{ws.on('error',()=>{});ws.on('message',raw=>{try{const m=JSON.parse(raw);if(!m||typeof m!=='object')return;if(m.type==='join')return join(ws,m);const c=conns.get(ws);if(!c)return;const r=rooms.get(c.room);if(!r)return;if(m.type==='hostLogin')hostLogin(ws,m,c);else if(m.type==='startGame'){if(!c.host)return send(ws,{type:'error',message:'只有主持人可以開始活動'});if(r.started)return send(ws,{type:'error',message:'活動已開始'});if(!r.players.length)return send(ws,{type:'error',message:'尚無登記玩家'});r.lockedCount=r.players.length;r.lockedThresholds=thresholds(r.lockedCount);r.lockedWheel=mainWheelFor(r.lockedCount);r.lockedRoster=r.players.map(p=>p.name);r.started=true;save();broadcast(c.room,{type:'gameStarted',count:r.lockedCount});broadcast(c.room);}else if(m.type==='kickPlayer')kickPlayer(ws,m,c,r);else if(m.type==='spin')spin(ws,c,r);else if(m.type==='revealSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.reveal?.();else if(m.type==='startSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.startSpecial?.();else if(m.type==='ackResult'&&(r.activeJob?.name===c.name||c.host)&&r.activeJob.awaitingAck)r.activeJob&&r.activeJob.finishAck?.();else if(m.type==='clearHistory'&&m.admin===true){r.history=[];save();broadcast(c.room);}}catch(e){console.error('message handling failed',e);}});ws.on('close',()=>{const c=conns.get(ws);conns.delete(ws);if(c)broadcast(c.room);});});
+wss.on('connection',ws=>{ws.on('error',()=>{});ws.on('message',raw=>{try{const m=JSON.parse(raw);if(!m||typeof m!=='object')return;if(m.type==='join')return join(ws,m);const c=conns.get(ws);if(!c)return;const r=rooms.get(c.room);if(!r)return;if(m.type==='hostLogin')hostLogin(ws,m,c);else if(m.type==='startGame'){if(!c.host)return send(ws,{type:'error',message:'只有主持人可以開始活動'});if(r.started)return send(ws,{type:'error',message:'活動已開始'});if(!r.players.length)return send(ws,{type:'error',message:'尚無登記玩家'});r.lockedCount=r.players.length;r.lockedThresholds=thresholds(r.lockedCount);r.lockedWheel=mainWheelFor(r.lockedCount);r.lockedRoster=r.players.map(p=>p.name);r.chaseActivated=false;r.started=true;save();broadcast(c.room,{type:'gameStarted',count:r.lockedCount});broadcast(c.room);}else if(m.type==='kickPlayer')kickPlayer(ws,m,c,r);else if(m.type==='spin')spin(ws,c,r);else if(m.type==='revealSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.reveal?.();else if(m.type==='startSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.startSpecial?.();else if(m.type==='ackResult'&&(r.activeJob?.name===c.name||c.host)&&r.activeJob.awaitingAck)r.activeJob&&r.activeJob.finishAck?.();else if(m.type==='clearHistory'&&m.admin===true){r.history=[];save();broadcast(c.room);}}catch(e){console.error('message handling failed',e);}});ws.on('close',()=>{const c=conns.get(ws);conns.delete(ws);if(c)broadcast(c.room);});});
 setInterval(()=>{for(const ws of wss.clients){if(ws.readyState===1)ws.ping();}},25000);
 server.listen(PORT,()=>console.log(`Lucky wheel listening on ${PORT}`));
