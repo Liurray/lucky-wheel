@@ -246,7 +246,7 @@ body:has(#join:not(.hidden)) {
 #loginSceneImage {
   position:fixed !important; inset:0 !important;
   width:100vw !important; height:100vh !important;
-  object-fit:cover !important; object-position:center center !important;
+  object-fit:contain !important; object-position:center center !important;
   z-index:-1 !important; pointer-events:none !important;
   display:block !important;
 }
@@ -280,6 +280,18 @@ body:has(#join:not(.hidden)) .join {
 @media(max-width:720px) {
   .festival-banner > .banner-castle-image { object-position:50% 50% !important; }
   #loginSceneImage {object-position:50% 50% !important;}
+}
+
+
+/* Login original image: fit entire artwork inside viewport, never crop/zoom. */
+body:has(#join:not(.hidden)) {
+  background: #111326 !important;
+}
+body:has(#join:not(.hidden)) #loginSceneImage {
+  object-fit: contain !important;
+  object-position: center center !important;
+  width: 100vw !important;
+  height: 100dvh !important;
 }
 
 </style></head><body>
