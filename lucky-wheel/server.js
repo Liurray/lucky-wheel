@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'boss-chase-stone-v9';
+const APP_VERSION = 'boss-rejoin-stone-v10';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
 const SPIN_MS = 4000;
@@ -83,16 +83,16 @@ try {
       draws: old.draws && typeof old.draws === 'object' ? old.draws : {},
       history: Array.isArray(old.history) ? old.history : [], pool: Number(old.pool) || 0,
       virtualItems: Number.isInteger(old.virtualItems) ? old.virtualItems : INITIAL_ITEMS,
-      queue: [], banned: Array.isArray(old.banned)?old.banned:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null, chaseActivated:!!old.chaseActivated
+      queue: [], banned: Array.isArray(old.banned)?old.banned:[], bannedNames: Array.isArray(old.bannedNames)?old.bannedNames:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null, chaseActivated:!!old.chaseActivated
     });
   }
 } catch {}
 function getRoom(code) {
-  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null, chaseActivated:false });
+  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], bannedNames: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null, chaseActivated:false });
   return rooms.get(code);
 }
 let saveTimer;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster,chaseActivated:r.chaseActivated}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,bannedNames:r.bannedNames,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster,chaseActivated:r.chaseActivated}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
 const conns = new Map();
 const timing = new Map();
 function online(code, name) { for (const c of conns.values()) if (c.room === code && c.name === name) return true; return false; }
@@ -127,13 +127,33 @@ const server=http.createServer((req,res)=>{
 });
 const wss=new WebSocketServer({server,maxPayload:16384});
 function weightedPick(items) { const total=items.reduce((s,x)=>s+x.weight,0); let n=crypto.randomInt(1000000000)/1000000000*total; for(let i=0;i<items.length;i++){n-=items[i].weight;if(n<0)return i;}return items.length-1; }
-function join(ws,m){const code=String(m.room||'').trim().replace(/[^\w一-龥-]/g,'').slice(0,20);const name=String(m.name||'').trim().slice(0,12);const token=String(m.token||'').slice(0,64);if(!code||!name)return send(ws,{type:'error',message:'請填寫活動代碼與暱稱'});const invite=String(m.inviteCode||'').trim();const host=invite.length>0 && invite===HOST_INVITE_CODE;if(invite&&!host)return send(ws,{type:'error',message:'主持人邀請碼不正確'});const r=getRoom(code);let p=r.players.find(x=>x.name===name);if(r.started&&!p)return send(ws,{type:'error',message:'活動已開始，登記名單已鎖定，無法新增玩家'});const prev=conns.get(ws);if(p&&p.token&&p.token!==token)return send(ws,{type:'error',message:'此 ID 已被登記，請使用原本的瀏覽器進入，或更換 ID'});if(r.banned?.includes(token))return send(ws,{type:'error',message:'你已被主持人移出房間，無法重新登記'});if(!p){p={name,token};r.players.push(p);}else if(token)p.token=token;conns.set(ws,{room:code,name,host});send(ws,{type:'joined',name,room:code,drawn:!!r.draws[name],result:r.draws[name]||null,host});save();broadcast(code);}
+function join(ws,m){
+ const code=String(m.room||'').trim().replace(/[^\w一-龥-]/g,'').slice(0,20);
+ const name=String(m.name||'').trim().slice(0,12);
+ const token=String(m.token||'').slice(0,64);
+ if(!code||!name||!token)return send(ws,{type:'error',message:'請填寫活動代碼與玩家 ID'});
+ const invite=String(m.inviteCode||'').trim();
+ const host=invite.length>0&&invite===HOST_INVITE_CODE;
+ if(invite&&!host)return send(ws,{type:'error',message:'主持人邀請碼不正確'});
+ const r=getRoom(code);
+ // Bans are room-specific, persistent, and checked before any reconnection path.
+ if((r.bannedNames||[]).includes(name)||r.banned.includes(token))return send(ws,{type:'error',message:'此 ID 已被主持人移出房間，禁止再次進入'});
+ let p=r.players.find(x=>x.name===name);
+ if(r.started&&!p)return send(ws,{type:'error',message:'活動已開始，登記名單已鎖定，無法新增玩家'});
+ // Same ID can re-enter when offline, including a different browser/device.
+ // A simultaneous connection cannot take over the existing player's turn.
+ if(p&&online(code,name))return send(ws,{type:'error',message:'此 ID 目前在線上，請先讓原連線離線再重新進房'});
+ if(!p){p={name,token};r.players.push(p)}else p.token=token;
+ conns.set(ws,{room:code,name,host});
+ send(ws,{type:'joined',name,room:code,drawn:!!r.draws[name],result:r.draws[name]||null,host});
+ save();broadcast(code);
+}
 function spin(ws,c,r){if(!r.started)return send(ws,{type:'error',message:'請等待主持人開始活動'});const next=(r.lockedRoster||[]).map(name=>r.players.find(p=>p.name===name)).find(p=>p&&!r.draws[p.name]);if(!next||(next.name!==c.name&&!c.host))return send(ws,{type:'error',message:next?'尚未輪到你，目前輪到 '+next.name:'所有登記玩家皆已抽完'});if(r.spinning||r.processing)return send(ws,{type:'error',message:'上一位玩家正在抽獎，請稍候'});if(r.draws[next.name])return send(ws,{type:'error',message:'你已經抽過一次，不能重複抽獎'});if(r.queue.some(j=>j.name===next.name)|| (r.activeJob&&r.activeJob.name===next.name))return send(ws,{type:'error',message:'你的抽獎正在處理中，請稍候'});const chase=chaseStatus(r);const wheel=chase.active?chase.mainWheel:r.lockedWheel;const job={name:next.name,mainWheel:wheel,mainIndex:weightedPick(wheel),specialTriggered:crypto.randomInt(100)<SPECIAL_CHANCE, specialIndex:null};if(job.specialTriggered)job.specialIndex=weightedPick(SPECIAL);r.queue.push(job);send(ws,{type:'queued',message:'輪到你了！正在啟動輪盤'});processQueue(c.room);}
 function processQueue(code){const r=rooms.get(code);if(!r||r.processing||!r.queue.length)return;r.processing=true;r.spinning=true;const job=r.queue.shift();r.activeJob=job;const main=job.mainWheel[job.mainIndex];const drawId=crypto.randomUUID();broadcast(code,{type:'mainSpin',drawId,player:job.name,index:job.mainIndex,score:main.score,duration:SPIN_MS});broadcast(code);
  function finish(){if(r.activeJob!==job||job.finished)return;job.finished=true;clearTimeout(job.ackTimeout);r.pool+=main.score+(job.specialScore||0);if(job.unlockItem)r.virtualItems++;clearTimeout(job.revealTimeout);clearTimeout(job.spinTimeout);const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool,virtualItems:r.virtualItems,time:Date.now()};r.draws[job.name]=result;r.history.unshift(result);if(r.history.length>500)r.history.length=500;r.spinning=false;r.processing=false;r.activeJob=null;save();broadcast(code,{type:'drawComplete',result});broadcast(code);processQueue(code);}
  function readyToAcknowledge(){if(r.activeJob!==job||job.awaitingAck)return;job.awaitingAck=true;const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool+main.score+(job.specialScore||0),virtualItems:r.virtualItems+(job.unlockItem?1:0)};broadcast(code,{type:'resultReady',result});job.finishAck=finish;job.ackTimeout=setTimeout(finish,45000);}
  job.reveal=()=>{if(r.activeJob!==job||job.revealed||!job.awaitingReveal)return;job.revealed=true;job.awaitingReveal=false;clearTimeout(job.revealTimeout);job.awaitingSpecialSpin=true;broadcast(code,{type:'specialReady',drawId,player:job.name});job.spinTimeout=setTimeout(()=>job.startSpecial?.(),45000);};
- job.startSpecial=()=>{if(r.activeJob!==job||!job.awaitingSpecialSpin||job.specialStarted)return;job.specialStarted=true;job.awaitingSpecialSpin=false;clearTimeout(job.spinTimeout);const s=SPECIAL[job.specialIndex];let specialScore=0,virtualBefore=r.virtualItems,converted=false,displayLabel=s.label;if(s.key==='virtual'){if(r.virtualItems<MAX_ITEMS){ /* reserved until confirmation */ }else{specialScore=1000;converted=true;displayLabel='天賞石已達上限，改為總傷害 +1,000';}}else specialScore=Number(s.key);job.unlockItem=s.key==='virtual'&&!converted;job.specialScore=specialScore;job.specialLabel=displayLabel;job.converted=converted;broadcast(code,{type:'specialSpin',drawId,player:job.name,index:job.specialIndex,label:s.label,displayLabel,virtualBefore,virtualAfter:r.virtualItems+(job.unlockItem?1:0),score:specialScore,converted,duration:SPIN_MS});broadcast(code);setTimeout(()=>{if(job.unlockItem){broadcast(code,{type:'stoneReveal',drawId,player:job.name,duration:3000});setTimeout(readyToAcknowledge,3000);}else readyToAcknowledge();},SPIN_MS+SPIN_GRACE_MS);};
+ job.startSpecial=()=>{if(r.activeJob!==job||!job.awaitingSpecialSpin||job.specialStarted)return;job.specialStarted=true;job.awaitingSpecialSpin=false;clearTimeout(job.spinTimeout);const s=SPECIAL[job.specialIndex];let specialScore=0,virtualBefore=r.virtualItems,converted=false,displayLabel=s.label;if(s.key==='virtual'){if(r.virtualItems<MAX_ITEMS){ /* reserved until confirmation */ }else{specialScore=1000;converted=true;displayLabel='天賞石已達上限，改為總傷害 +1,000';}}else specialScore=Number(s.key);job.unlockItem=s.key==='virtual'&&!converted;job.specialScore=specialScore;job.specialLabel=displayLabel;job.converted=converted;broadcast(code,{type:'specialSpin',drawId,player:job.name,index:job.specialIndex,label:s.label,displayLabel,virtualBefore,virtualAfter:r.virtualItems+(job.unlockItem?1:0),score:specialScore,converted,duration:SPIN_MS});broadcast(code);setTimeout(()=>{if(job.unlockItem){broadcast(code,{type:'stoneReveal',drawId,player:job.name,duration:3000});setTimeout(readyToAcknowledge,3200);}else readyToAcknowledge();},SPIN_MS+SPIN_GRACE_MS);};
  setTimeout(()=>{if(job.specialTriggered){job.awaitingReveal=true;broadcast(code,{type:'specialIntro',drawId,player:job.name});job.revealTimeout=setTimeout(job.reveal,45000);}else readyToAcknowledge();},SPIN_MS+SPIN_GRACE_MS);
 }
 function hostLogin(ws,m,c){
@@ -146,7 +166,7 @@ function kickPlayer(ws,m,c,r){
   if(!c.host)return send(ws,{type:'error',message:'只有主持人可以移除玩家'});
   const name=String(m.name||'');if(!r.players.some(p=>p.name===name))return send(ws,{type:'error',message:'玩家不在房間中'});
   if(r.activeJob?.name===name)return send(ws,{type:'error',message:'該玩家正在抽獎，請等待本回合結算後再移除'});
-  const target=r.players.find(p=>p.name===name);if(target.token&&!r.banned.includes(target.token))r.banned.push(target.token);r.players=r.players.filter(p=>p.name!==name);
+  const target=r.players.find(p=>p.name===name);if(target.token&&!r.banned.includes(target.token))r.banned.push(target.token);if(!r.bannedNames)r.bannedNames=[];if(!r.bannedNames.includes(name))r.bannedNames.push(name);r.players=r.players.filter(p=>p.name!==name);
   // Removing an already-drawn player does not undo their settled contribution.
   for(const [client,info] of conns){if(info.room===c.room&&info.name===name){send(client,{type:'kicked',message:'你已被主持人移出房間'});conns.delete(client);client.close(4001,'Removed by host');}}
   save();broadcast(c.room);
