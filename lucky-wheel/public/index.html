@@ -206,6 +206,41 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;bac
 @keyframes auraSpin{to{transform:rotate(360deg)}}
 @media(max-width:1180px){#app{grid-template-columns:minmax(200px,26%) minmax(0,1fr);grid-template-rows:220px auto auto auto}.festival-banner{grid-row:1}.room-panel{grid-column:1;grid-row:2/4}.battle-top-layout>.boss-hero{grid-column:2;grid-row:2}.battle-top-layout>.main-wheel-overlay{grid-column:2;grid-row:3}.history-wide{grid-column:1/-1;grid-row:4}}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:175px auto auto auto auto}.festival-banner{grid-column:1;grid-row:1}.festival-brand{width:50%}.brand-title{font-size:clamp(29px,7vw,49px)}.banner-original{right:-10%;width:75%;top:-3%;height:110%}.banner-sigil{display:none}.battle-top-layout>.boss-hero{grid-column:1;grid-row:2}.battle-top-layout>.main-wheel-overlay{grid-column:1;grid-row:3}.room-panel{grid-column:1;grid-row:4;min-height:0}.history-wide{grid-column:1;grid-row:5}.boss-arena{min-height:260px}.milestone{min-height:125px}.room-list{max-height:270px}}
+
+/* v15 image placement fix: use supplied assets, no generated replacement images */
+.festival-banner {
+  background-image:
+    linear-gradient(90deg, rgba(9,14,36,.70) 0%, rgba(12,15,39,.18) 42%, rgba(12,11,34,.36) 100%),
+    url('/login-background.png') !important;
+  background-size: cover !important;
+  background-position: center 49% !important;
+  background-repeat: no-repeat !important;
+}
+.festival-banner .banner-original { display: none !important; }
+.boss-arena .boss-portrait {
+  background-image: url('/boss-background.png') !important;
+  background-size: cover !important;
+  background-position: center 39% !important;
+  background-repeat: no-repeat !important;
+  opacity: 1 !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
+.boss-arena .boss-arena-shade {
+  background: linear-gradient(180deg, rgba(5,8,24,.03) 0%, rgba(5,8,24,.04) 49%, rgba(5,8,24,.76) 82%, rgba(5,8,24,.94) 100%) !important;
+}
+body:has(#join:not(.hidden)) {
+  background-image: linear-gradient(90deg, rgba(9,12,28,.50), rgba(13,10,30,.20) 48%, rgba(9,12,28,.44)), url('/login-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+@media (max-width:720px) {
+  .festival-banner { background-position: center center !important; }
+  .boss-arena .boss-portrait { background-position: center 35% !important; }
+}
+
 </style></head><body>
 <div class="wrap">
 <section id="join" class="join"><h1>🎡 全服幸運輪盤</h1><p>依登記人數・全員共享獎池</p><label>活動代碼</label><input id="roomIn" maxlength="20" placeholder="例如：event2026"><label>你的暱稱</label><input id="nameIn" maxlength="12" placeholder="輸入活動使用的暱稱"><label>主持人邀請碼（選填）</label><input id="inviteIn" type="password" autocomplete="off" placeholder="一般玩家請留空"><button id="joinBtn" class="btn" style="margin-top:16px">進入活動</button><div id="joinErr" class="err"></div></section>
