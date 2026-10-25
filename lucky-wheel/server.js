@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'boss-rejoin-stone-v10';
+const APP_VERSION = 'boss-purple-final-chase-v12';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
 const SPIN_MS = 4000;
@@ -53,13 +53,14 @@ function wheelForTargetMean(base, target) {
 function chaseStatus(r){
   if(!r.started)return {active:false};
   const total=r.lockedCount||0,done=(r.lockedRoster||[]).filter(name=>!!r.draws[name]).length;
-  const first=r.lockedThresholds.card490,second=r.lockedThresholds.purple;
-  const remaining=Math.max(0,total-done),gap=Math.max(0,first-r.pool);
+  const second=r.lockedThresholds.purple,final=r.lockedThresholds.card990;
+  const remaining=Math.max(0,total-done),gap=Math.max(0,second-r.pool);
   // 僅首次進入追擊條件時啟動，直到活動結束，避免機率來回跳動。
-  if(!r.chaseActivated && done>total/2 && gap>first/2 && remaining>0){r.chaseActivated=true;save();}
+  if(!r.chaseActivated && done>total/2 && gap>second/2 && remaining>0){r.chaseActivated=true;save();}
   if(!r.chaseActivated)return {active:false,done,total,gap};
-  const target=Math.round((first+second)/2);
-  const expectedBonusPerTurn=0.15*(0.3*1000+0.2*2000+0.1*3000+0.4*0); // 保守估計，石頭不計傷害
+  // 追擊目標：紫色籤子與最高討伐門檻之間，預留兩端緩衝。
+  const target=Math.round(second+(final-second)*0.5);
+  const expectedBonusPerTurn=0.15*(0.3*1000+0.2*2000+0.1*3000); // 天賞石不計傷害；已達上限時可能額外 +1000
   const needed=(target-r.pool)/Math.max(1,remaining)-expectedBonusPerTurn;
   // 僅在追擊啟動後調整，並確保不會低於開場基準平均傷害。
   const baseMean=r.lockedWheel.reduce((v,x)=>v+x.score*x.weight/100,0);
