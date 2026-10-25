@@ -13,6 +13,27 @@ const MAIN = [
   { score: 60, weight: 15 }, { score: 300, weight: 25 }, { score: 980, weight: 25 },
   { score: 1980, weight: 20 }, { score: 3280, weight: 12 }, { score: 6480, weight: 3 }
 ];
+// 固定六種傷害值，只調整抽中機率。目標平均傷害可依房間人數調整。
+// 80 人基準目標為原輪盤平均傷害的 80%；超過 80 人時小幅調低。
+const PROBABILITY_FACTOR = Math.min(1, Math.max(0.3, Number(process.env.PROBABILITY_FACTOR) || 0.80));
+const ORIGINAL_MEAN = MAIN.reduce((sum, x) => sum + x.score * x.weight / 100, 0);
+function mainWheelFor(count) {
+  const n = Math.max(1, count);
+  const targetMean = ORIGINAL_MEAN * PROBABILITY_FACTOR * Math.pow(80 / Math.max(80, n), 0.12);
+  // 指數傾斜：保留所有獎項，將高分機率轉給低分獎項。
+  function calculate(lambda) {
+    const weights = MAIN.map(x => x.weight * Math.exp(-lambda * x.score / 1000));
+    const sum = weights.reduce((a,b)=>a+b,0);
+    return MAIN.map((x,i)=>({...x,weight:weights[i]/sum*100}));
+  }
+  let lo=-20, hi=20;
+  for (let i=0;i<80;i++) {
+    const mid=(lo+hi)/2;
+    const mean=calculate(mid).reduce((a,x)=>a+x.score*x.weight/100,0);
+    if(mean>targetMean) lo=mid; else hi=mid;
+  }
+  return calculate((lo+hi)/2);
+}
 const SPECIAL = [
   { key: 'virtual', label: '解鎖 +1 顆虛寶', weight: 40 },
   { key: '500', label: '獎池 +500 分', weight: 30 },
@@ -64,16 +85,16 @@ function snapshot(code) {
   const count = players.length; const nextPlayer = players.find(p=>!p.drawn); const tier = currentTier(r.pool, count), budget = affordableTier(r.pool, r.virtualItems, count);
   return { type:'state', room:code, players, pool:r.pool, virtualItems:r.virtualItems, initialVirtualItems:INITIAL_ITEMS, maxVirtualItems:MAX_ITEMS,
     completed:players.filter(p=>p.drawn).length, total:count, currentTurn:nextPlayer?.name||null, turnNumber:nextPlayer?players.indexOf(nextPlayer)+1:null, thresholds:thresholds(count), tier, affordableTier:budget.final, estimatedCost:budget.cost, withinBudget:budget.withinBudget,
-    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:MAIN, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE };
+    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:mainWheelFor(count), probabilityFactor:PROBABILITY_FACTOR, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE };
 }
 function broadcast(code, msg) { const data=JSON.stringify(msg || snapshot(code)); for(const [ws,c] of conns) if(c.room===code && ws.readyState===1) ws.send(data); }
 function send(ws,msg){ if(ws.readyState===1) ws.send(JSON.stringify(msg)); }
 const server=http.createServer((req,res)=>{ const url=req.url.split('?')[0]; if(url==='/'||url==='/index.html'){fs.readFile(path.join(__dirname,'public','index.html'),(e,b)=>{if(e){res.writeHead(500);return res.end('server error');}res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'});res.end(b);});} else if(url==='/fortune-character.png'){fs.readFile(path.join(__dirname,'public','fortune-character.png'),(e,b)=>{if(e){res.writeHead(404);return res.end();}res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=3600'});res.end(b);});}else if(url==='/healthz'){res.writeHead(200);res.end('ok');}else{res.writeHead(404);res.end('not found');}});
 const wss=new WebSocketServer({server,maxPayload:16384});
-function weightedPick(items) { const total=items.reduce((s,x)=>s+x.weight,0); let n=crypto.randomInt(total); for(let i=0;i<items.length;i++){n-=items[i].weight;if(n<0)return i;}return items.length-1; }
+function weightedPick(items) { const total=items.reduce((s,x)=>s+x.weight,0); let n=crypto.randomInt(1000000000)/1000000000*total; for(let i=0;i<items.length;i++){n-=items[i].weight;if(n<0)return i;}return items.length-1; }
 function join(ws,m){const code=String(m.room||'').trim().replace(/[^\w一-龥-]/g,'').slice(0,20);const name=String(m.name||'').trim().slice(0,12);const token=String(m.token||'').slice(0,64);if(!code||!name)return send(ws,{type:'error',message:'請填寫活動代碼與暱稱'});const invite=String(m.inviteCode||'').trim();const host=invite.length>0 && invite===HOST_INVITE_CODE;if(invite&&!host)return send(ws,{type:'error',message:'主持人邀請碼不正確'});const r=getRoom(code);let p=r.players.find(x=>x.name===name);const prev=conns.get(ws);if(p&&p.token&&p.token!==token)return send(ws,{type:'error',message:'此 ID 已被登記，請使用原本的瀏覽器進入，或更換 ID'});if(r.banned?.includes(token))return send(ws,{type:'error',message:'你已被主持人移出房間，無法重新登記'});if(!p){p={name,token};r.players.push(p);}else if(token)p.token=token;conns.set(ws,{room:code,name,host});send(ws,{type:'joined',name,room:code,drawn:!!r.draws[name],result:r.draws[name]||null,host});save();broadcast(code);}
-function spin(ws,c,r){const next=r.players.find(p=>!r.draws[p.name]);if(!next||next.name!==c.name)return send(ws,{type:'error',message:next?'尚未輪到你，目前輪到 '+next.name:'所有登記玩家皆已抽完'});if(r.spinning||r.processing)return send(ws,{type:'error',message:'上一位玩家正在抽獎，請稍候'});if(r.draws[c.name])return send(ws,{type:'error',message:'你已經抽過一次，不能重複抽獎'});if(r.queue.some(j=>j.name===c.name)|| (r.activeJob&&r.activeJob.name===c.name))return send(ws,{type:'error',message:'你的抽獎正在處理中，請稍候'});const job={name:c.name,mainIndex:weightedPick(MAIN),specialTriggered:crypto.randomInt(100)<SPECIAL_CHANCE, specialIndex:null};if(job.specialTriggered)job.specialIndex=weightedPick(SPECIAL);r.queue.push(job);send(ws,{type:'queued',message:'輪到你了！正在啟動輪盤'});processQueue(c.room);}
-function processQueue(code){const r=rooms.get(code);if(!r||r.processing||!r.queue.length)return;r.processing=true;r.spinning=true;const job=r.queue.shift();r.activeJob=job;const main=MAIN[job.mainIndex];const drawId=crypto.randomUUID();broadcast(code,{type:'mainSpin',drawId,player:job.name,index:job.mainIndex,score:main.score,duration:SPIN_MS});broadcast(code);
+function spin(ws,c,r){const next=r.players.find(p=>!r.draws[p.name]);if(!next||next.name!==c.name)return send(ws,{type:'error',message:next?'尚未輪到你，目前輪到 '+next.name:'所有登記玩家皆已抽完'});if(r.spinning||r.processing)return send(ws,{type:'error',message:'上一位玩家正在抽獎，請稍候'});if(r.draws[c.name])return send(ws,{type:'error',message:'你已經抽過一次，不能重複抽獎'});if(r.queue.some(j=>j.name===c.name)|| (r.activeJob&&r.activeJob.name===c.name))return send(ws,{type:'error',message:'你的抽獎正在處理中，請稍候'});const wheel=mainWheelFor(r.players.length);const job={name:c.name,mainWheel:wheel,mainIndex:weightedPick(wheel),specialTriggered:crypto.randomInt(100)<SPECIAL_CHANCE, specialIndex:null};if(job.specialTriggered)job.specialIndex=weightedPick(SPECIAL);r.queue.push(job);send(ws,{type:'queued',message:'輪到你了！正在啟動輪盤'});processQueue(c.room);}
+function processQueue(code){const r=rooms.get(code);if(!r||r.processing||!r.queue.length)return;r.processing=true;r.spinning=true;const job=r.queue.shift();r.activeJob=job;const main=job.mainWheel[job.mainIndex];const drawId=crypto.randomUUID();broadcast(code,{type:'mainSpin',drawId,player:job.name,index:job.mainIndex,score:main.score,duration:SPIN_MS});broadcast(code);
  function finish(){if(r.activeJob!==job||job.finished)return;job.finished=true;clearTimeout(job.ackTimeout);r.pool+=main.score+(job.specialScore||0);if(job.unlockItem)r.virtualItems++;clearTimeout(job.revealTimeout);clearTimeout(job.spinTimeout);const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool,virtualItems:r.virtualItems,time:Date.now()};r.draws[job.name]=result;r.history.unshift(result);if(r.history.length>500)r.history.length=500;r.spinning=false;r.processing=false;r.activeJob=null;save();broadcast(code,{type:'drawComplete',result});broadcast(code);processQueue(code);}
  function readyToAcknowledge(){if(r.activeJob!==job||job.awaitingAck)return;job.awaitingAck=true;const result={player:job.name,mainScore:main.score,specialTriggered:job.specialTriggered,specialResult:job.specialTriggered?(job.specialLabel||SPECIAL[job.specialIndex].label):null,specialScore:job.specialScore||0,pool:r.pool+main.score+(job.specialScore||0),virtualItems:r.virtualItems+(job.unlockItem?1:0)};broadcast(code,{type:'resultReady',result});job.finishAck=finish;job.ackTimeout=setTimeout(finish,45000);}
  job.reveal=()=>{if(r.activeJob!==job||job.revealed||!job.awaitingReveal)return;job.revealed=true;job.awaitingReveal=false;clearTimeout(job.revealTimeout);job.awaitingSpecialSpin=true;broadcast(code,{type:'specialReady',drawId,player:job.name});job.spinTimeout=setTimeout(()=>job.startSpecial?.(),45000);};
