@@ -241,10 +241,52 @@ body:has(#join:not(.hidden)) {
   .boss-arena .boss-portrait { background-position: center 35% !important; }
 }
 
+
+/* v15 banner/login image reliability fix: actual <img> elements, not CSS backgrounds */
+#loginSceneImage {
+  position:fixed !important; inset:0 !important;
+  width:100vw !important; height:100vh !important;
+  object-fit:cover !important; object-position:center center !important;
+  z-index:-1 !important; pointer-events:none !important;
+  display:block !important;
+}
+body:has(#app:not(.hidden)) #loginSceneImage { display:none !important; }
+body:has(#join:not(.hidden)) { background:transparent !important; }
+body:has(#join:not(.hidden))::before {
+  content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(90deg,rgba(5,8,24,.58),rgba(5,8,24,.20) 48%,rgba(5,8,24,.46));
+}
+body:has(#join:not(.hidden)) .join {
+  position:relative; z-index:1; background:rgba(15,14,38,.83) !important;
+  border:1px solid rgba(255,219,153,.68) !important;
+  box-shadow:0 22px 70px #0009,0 0 35px #a27dff55 !important;
+  backdrop-filter:blur(12px);
+}
+.festival-banner { isolation:isolate !important; }
+.festival-banner > .banner-castle-image {
+  display:block !important;
+  position:absolute !important; inset:0 !important;
+  width:100% !important; height:100% !important;
+  object-fit:cover !important; object-position:center 51% !important;
+  z-index:-2 !important; pointer-events:none !important;
+  opacity:1 !important;
+}
+.festival-banner::before {
+  content:"" !important; position:absolute !important; inset:0 !important;
+  background:linear-gradient(90deg,rgba(5,8,28,.72) 0%,rgba(5,8,28,.19) 42%,rgba(5,8,28,.22) 72%,rgba(5,8,28,.55) 100%) !important;
+  z-index:-1 !important; pointer-events:none !important;
+}
+.festival-banner .festival-brand, .festival-banner .banner-sigil {position:relative;z-index:1;}
+@media(max-width:720px) {
+  .festival-banner > .banner-castle-image { object-position:50% 50% !important; }
+  #loginSceneImage {object-position:50% 50% !important;}
+}
+
 </style></head><body>
+<img id="loginSceneImage" src="/login-background.png" alt="" aria-hidden="true" fetchpriority="high">
 <div class="wrap">
 <section id="join" class="join"><h1>🎡 全服幸運輪盤</h1><p>依登記人數・全員共享獎池</p><label>活動代碼</label><input id="roomIn" maxlength="20" placeholder="例如：event2026"><label>你的暱稱</label><input id="nameIn" maxlength="12" placeholder="輸入活動使用的暱稱"><label>主持人邀請碼（選填）</label><input id="inviteIn" type="password" autocomplete="off" placeholder="一般玩家請留空"><button id="joinBtn" class="btn" style="margin-top:16px">進入活動</button><div id="joinErr" class="err"></div></section>
-<main id="app" class="hidden"><header class="festival-banner"><div class="festival-brand"><span class="brand-top">✧ 貓眠花下 · 幫會年末活動 ✧</span><span class="brand-title">九霄天魔<br><em>討伐戰</em></span><span class="brand-foot">✦ 全員共戰 · 幸運降臨 ✦</span></div><div class="banner-original" role="img" aria-label="原版發瘋啦角色雙手抱頭動作"></div><div class="banner-sigil">✦ 福運輪盤 ✦<small>天賞降臨 · 共戰魔王</small></div></header>
+<main id="app" class="hidden"><header class="festival-banner"><img class="banner-castle-image" src="/login-background.png" alt="" aria-hidden="true" fetchpriority="high"><div class="festival-brand"><span class="brand-top">✧ 貓眠花下 · 幫會年末活動 ✧</span><span class="brand-title">九霄天魔<br><em>討伐戰</em></span><span class="brand-foot">✦ 全員共戰 · 幸運降臨 ✦</span></div><div class="banner-original" role="img" aria-label="原版發瘋啦角色雙手抱頭動作"></div><div class="banner-sigil">✦ 福運輪盤 ✦<small>天賞降臨 · 共戰魔王</small></div></header>
 <div class="battle-top-layout">
 <section class="hero boss-hero" aria-label="討伐魔王獎勵進度">
   <div class="head"><div><h1>⚔️ 九霄天魔 · 討伐戰</h1><div class="sub">每次抽獎化作傷害 · 合力擊敗 BOSS 解鎖全員獎勵</div></div><span class="pill" id="eventStatus">等待主持人開始</span></div>
