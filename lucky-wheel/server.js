@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
+const APP_VERSION = 'boss-deploy-20261025-v3';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
 const SPIN_MS = 6000;
@@ -89,7 +90,17 @@ function snapshot(code) {
 }
 function broadcast(code, msg) { const data=JSON.stringify(msg || snapshot(code)); for(const [ws,c] of conns) if(c.room===code && ws.readyState===1) ws.send(data); }
 function send(ws,msg){ if(ws.readyState===1) ws.send(JSON.stringify(msg)); }
-const server=http.createServer((req,res)=>{ const url=req.url.split('?')[0]; if(url==='/'||url==='/index.html'){fs.readFile(path.join(__dirname,'public','index.html'),(e,b)=>{if(e){res.writeHead(500);return res.end('server error');}res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'});res.end(b);});} else if(url==='/fortune-character.png'){fs.readFile(path.join(__dirname,'public','fortune-character.png'),(e,b)=>{if(e){res.writeHead(404);return res.end();}res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=3600'});res.end(b);});}else if(url==='/healthz'){res.writeHead(200);res.end('ok');}else{res.writeHead(404);res.end('not found');}});
+const server=http.createServer((req,res)=>{
+ const url=(req.url||'/').split('?')[0];
+ if(url==='/healthz'){res.writeHead(200);return res.end('ok');}
+ if(url==='/version'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({version:APP_VERSION,ui:'boss-battle',dynamicProbability:true}));}
+ const name={'/':'index.html','/index.html':'index.html','/fortune-character.png':'fortune-character.png'}[url];
+ if(!name){res.writeHead(404);return res.end('not found');}
+ fs.readFile(path.join(__dirname,'public',name),(e,data)=>{
+  if(e){res.writeHead(500);return res.end('server error');}
+  res.writeHead(200,{'Content-Type':name.endsWith('.png')?'image/png':'text/html; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Pragma':'no-cache','X-App-Version':APP_VERSION});res.end(data);
+ });
+});
 const wss=new WebSocketServer({server,maxPayload:16384});
 function weightedPick(items) { const total=items.reduce((s,x)=>s+x.weight,0); let n=crypto.randomInt(1000000000)/1000000000*total; for(let i=0;i<items.length;i++){n-=items[i].weight;if(n<0)return i;}return items.length-1; }
 function join(ws,m){const code=String(m.room||'').trim().replace(/[^\w一-龥-]/g,'').slice(0,20);const name=String(m.name||'').trim().slice(0,12);const token=String(m.token||'').slice(0,64);if(!code||!name)return send(ws,{type:'error',message:'請填寫活動代碼與暱稱'});const invite=String(m.inviteCode||'').trim();const host=invite.length>0 && invite===HOST_INVITE_CODE;if(invite&&!host)return send(ws,{type:'error',message:'主持人邀請碼不正確'});const r=getRoom(code);let p=r.players.find(x=>x.name===name);const prev=conns.get(ws);if(p&&p.token&&p.token!==token)return send(ws,{type:'error',message:'此 ID 已被登記，請使用原本的瀏覽器進入，或更換 ID'});if(r.banned?.includes(token))return send(ws,{type:'error',message:'你已被主持人移出房間，無法重新登記'});if(!p){p={name,token};r.players.push(p);}else if(token)p.token=token;conns.set(ws,{room:code,name,host});send(ws,{type:'joined',name,room:code,drawn:!!r.draws[name],result:r.draws[name]||null,host});save();broadcast(code);}
