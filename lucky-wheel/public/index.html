@@ -180,10 +180,57 @@ body:not(:has(#join:not(.hidden)))::before{content:"";position:fixed;inset:0;poi
 @media(min-width:1350px){.history-wide{grid-column:2/4;grid-row:3}.room-panel{grid-row:2/4}.room-list{max-height:560px}}
 @media(max-width:1200px){#app{grid-template-columns:minmax(200px,25%) minmax(0,1fr)}.battle-top-layout>.boss-hero{grid-column:2;grid-row:2}.battle-top-layout>.main-wheel-overlay{grid-column:2;grid-row:3}.room-panel{grid-column:1;grid-row:2/4}.history-wide{grid-column:1/-1;grid-row:4}.banner-original{right:4%;width:55%}}
 @media(max-width:760px){#app{grid-template-columns:minmax(0,1fr)}.festival-banner{grid-column:1;height:190px;min-height:190px}.brand-title{font-size:35px}.brand-top,.brand-foot{font-size:10px}.banner-original{right:-13%;width:75%;top:-5%;height:120%}.banner-sigil{display:none}.battle-top-layout>.boss-hero{grid-column:1;grid-row:2}.battle-top-layout>.main-wheel-overlay{grid-column:1;grid-row:3}.room-panel{grid-column:1;grid-row:4;min-height:0}.history-wide{grid-column:1;grid-row:5}.boss-arena{min-height:250px}.boss-milestones{grid-template-columns:repeat(4,minmax(0,1fr))}.milestone{min-height:130px}.milestone .tier-jewel{height:38px;font-size:30px}.milestone strong{font-size:10px}.milestone span,.milestone small{font-size:9px}.room-list{max-height:280px}.record-flourish{display:none}}
+
+/* v16: visual rebuild — dense cinematic three-column event stage */
+body:not(:has(#join:not(.hidden))){padding:0!important;background:#0a1028!important}
+body:not(:has(#join:not(.hidden)))::before{z-index:-1;background:linear-gradient(110deg,#09122c9c,#11102a9e),url('/design-reference.png') center top/cover fixed!important;opacity:1!important;filter:blur(9px) saturate(1.3);transform:scale(1.04)}
+.wrap{max-width:none!important;width:100%;padding:0 12px 18px}
+#app{display:grid!important;grid-template-columns:minmax(215px,19%) minmax(0,1fr) minmax(340px,31%)!important;gap:10px!important;align-items:start}
+.festival-banner{grid-column:1/-1!important;height:clamp(190px,17vw,290px)!important;min-height:190px!important;border-radius:0 0 20px 20px!important;border:0!important;border-bottom:3px solid #f9d9a0!important;overflow:hidden;background:linear-gradient(90deg,#080d27d8 0%,#0c11315c 29%,#0b123019 57%,#0a1029ad 100%),url('/original-character.png') center 40%/cover no-repeat!important;box-shadow:inset 0 -45px 55px #0c0d28cc,0 8px 28px #020314aa!important}
+.festival-banner::before{content:'✦  江湖一夢 · 花下相聚  ✦';position:absolute;top:9%;left:38%;color:#fff4d8;font-size:clamp(11px,1.2vw,18px);text-shadow:0 0 10px #10102e,0 0 16px #edb2ff;z-index:3}
+.banner-original{display:none!important} /* original image is displayed unchanged as the full banner background */
+.festival-brand{align-self:flex-end;margin-bottom:13px;padding:10px 18px;background:linear-gradient(90deg,#090c25c9,transparent);text-align:left!important}
+.brand-title{font-size:clamp(39px,4.4vw,82px)!important;line-height:.98!important;filter:drop-shadow(0 3px 2px #6c2a29)}
+.brand-top,.brand-foot{color:#fff0ce!important;text-shadow:0 0 12px #16102a}
+.banner-sigil{bottom:12%!important;right:2%!important;font-size:clamp(18px,2.3vw,39px)!important;color:#fff7ef!important;text-shadow:0 0 8px #191330,0 0 24px #eaa2ff!important}
+.battle-top-layout{display:contents!important}
+.battle-top-layout>.boss-hero{grid-column:2!important;grid-row:2!important;min-width:0}
+.battle-top-layout>.main-wheel-overlay{grid-column:3!important;grid-row:2!important;display:block!important;visibility:visible!important;position:relative!important;min-width:0}
+.battle-top-layout>.main-wheel-overlay.hidden{display:block!important}
+.room-panel{grid-column:1!important;grid-row:2/4!important;min-height:690px!important}
+.history-wide{grid-column:2/4!important;grid-row:3!important}
+.hero,.card,.room-panel{border:2px solid #e4b76e!important;background:linear-gradient(140deg,#101a3ceF,#10132eeF 75%,#1c1240ef)!important;box-shadow:inset 0 0 0 1px #fff3c030,inset 0 0 25px #f7bc7130,0 0 22px #aa63f477,0 10px 30px #0009!important}
+.boss-hero{padding:12px!important}
+.boss-arena{min-height:clamp(210px,21vw,350px)!important;background:linear-gradient(180deg,#0a0d2b33,#090b23e5),url('/original-character.png') center 42%/cover no-repeat!important;border:2px solid #efc484!important}
+.boss-portrait{background:transparent!important}
+.boss-dragon{font-size:clamp(55px,7vw,100px)!important;opacity:.85}
+.boss-arena-shade{background:linear-gradient(180deg,transparent 28%,#080a1be9 95%)!important}
+.boss-health{height:32px!important;border:2px solid #ffe4ad!important;box-shadow:0 0 22px #ff437aaa,inset 0 0 13px #000!important}
+.boss-health-fill{background:linear-gradient(90deg,#f42361,#ff7eb1,#ff3b8c)!important}
+.boss-milestones{gap:4px!important;padding-bottom:20px!important}
+.milestone{border:0!important;background:linear-gradient(180deg,#17163e77,#141d4080)!important;box-shadow:none!important}
+.milestone:after{content:'◆';position:absolute;bottom:-14px;color:#ffd277;font-size:24px;text-shadow:0 0 13px #ffb842;z-index:2}
+.milestone:nth-child(3):after{color:#d78aff}.milestone:nth-child(4):after{color:#ff6b81}
+.milestone .tier-jewel{font-size:clamp(38px,4vw,65px)!important;height:62px!important;filter:drop-shadow(0 0 12px currentColor)}
+.milestone-heading strong{font-size:18px}
+.battle-top-layout .main-wheel-dialog{padding:10px 14px 16px!important;border:2px solid #f4d398!important;background:radial-gradient(ellipse at center 43%,#7047ac7d,#141334 72%),linear-gradient(#141738,#0a1230)!important;box-shadow:0 0 30px #ffb74e80,inset 0 0 36px #b17fff55!important}
+.battle-top-layout .main-wheel-dialog .wheelbox{width:min(100%,clamp(330px,29vw,540px))!important;margin:5px auto!important}
+.wheelbox canvas{filter:drop-shadow(0 0 20px #f7bd64)!important}
+.wheel-modal-header h2{font-size:clamp(18px,1.5vw,25px)!important}
+.wheelhub{width:100px!important;height:100px!important}
+#spinBtn{max-width:360px;display:block;margin:0 auto}
+.room-panel{padding:13px!important}.room-list{max-height:530px!important}
+.room-player{min-height:41px!important;border-bottom:1px solid #c9a77350!important}
+.room-player.current{background:linear-gradient(90deg,#8e523ec9,#3a285bd9)!important}
+.history-wide{padding:15px 20px!important}.history-wide .log{max-height:440px!important;display:block!important}.history-wide .logitem{display:flex!important;flex-wrap:nowrap!important;min-height:42px!important;gap:12px!important;border-bottom:1px solid #b9916555!important}
+.boss-damage{font-size:32px!important}
+@media(max-width:1100px){#app{grid-template-columns:minmax(180px,27%) minmax(0,1fr)!important}.room-panel{grid-column:1!important;grid-row:2/4!important}.battle-top-layout>.boss-hero{grid-column:2!important;grid-row:2!important}.battle-top-layout>.main-wheel-overlay{grid-column:2!important;grid-row:3!important}.history-wide{grid-column:1/-1!important;grid-row:4!important}.battle-top-layout .main-wheel-dialog .wheelbox{width:min(100%,430px)!important}}
+@media(max-width:700px){#app{grid-template-columns:1fr!important}.festival-banner{grid-column:1!important;height:210px!important;background-position:54% center!important}.festival-brand{margin-left:0}.brand-title{font-size:38px!important}.banner-sigil{display:none!important}.room-panel{grid-column:1!important;grid-row:4!important;min-height:0!important}.battle-top-layout>.boss-hero{grid-column:1!important;grid-row:2!important}.battle-top-layout>.main-wheel-overlay{grid-column:1!important;grid-row:3!important}.history-wide{grid-column:1!important;grid-row:5!important}.battle-top-layout .main-wheel-dialog .wheelbox{width:min(100%,390px)!important}.milestone{min-height:130px!important}.milestone .tier-jewel{height:40px!important;font-size:34px!important}}
+
 </style></head><body>
 <div class="wrap">
 <section id="join" class="join"><h1>🎡 全服幸運輪盤</h1><p>依登記人數・全員共享獎池</p><label>活動代碼</label><input id="roomIn" maxlength="20" placeholder="例如：event2026"><label>你的暱稱</label><input id="nameIn" maxlength="12" placeholder="輸入活動使用的暱稱"><label>主持人邀請碼（選填）</label><input id="inviteIn" type="password" autocomplete="off" placeholder="一般玩家請留空"><button id="joinBtn" class="btn" style="margin-top:16px">進入活動</button><div id="joinErr" class="err"></div></section>
-<main id="app" class="hidden"><header class="festival-banner"><div class="festival-brand"><span class="brand-top">✧ 貓眠花下 · 幫會年末活動 ✧</span><span class="brand-title">九霄天魔<br><em>討伐戰</em></span><span class="brand-foot">✦ 全員共戰 · 幸運降臨 ✦</span></div><div class="banner-original" role="img" aria-label="原版發瘋啦角色雙手抱頭動作"></div><div class="banner-sigil">✦ 福運輪盤 ✦<small>天賞降臨 · 共戰魔王</small></div></header>
+<main id="app" class="hidden"><header class="festival-banner"><div class="festival-brand"><span class="brand-top">✧ 貓眠花下 · 幫會年末活動 ✧</span><span class="brand-title">晴天貓爸爸<br><em>討伐戰</em></span><span class="brand-foot">✦ 全員共戰 · 幸運降臨 ✦</span></div><div class="banner-original" role="img" aria-label="原版發瘋啦角色雙手抱頭動作"></div><div class="banner-sigil">✦ 福運輪盤 ✦<small>天賞降臨 · 共戰魔王</small></div></header>
 <div class="battle-top-layout">
 <section class="hero boss-hero" aria-label="討伐魔王獎勵進度">
   <div class="head"><div><h1>⚔️ 九霄天魔 · 討伐戰</h1><div class="sub">每次抽獎化作傷害 · 合力擊敗 BOSS 解鎖全員獎勵</div></div><span class="pill" id="eventStatus">等待主持人開始</span></div>
@@ -194,7 +241,7 @@ body:not(:has(#join:not(.hidden)))::before{content:"";position:fixed;inset:0;poi
   </div>
   <div class="milestone-heading"><strong>✦ 討伐戰利品 · 四重獎賞 ✦</strong><span>每次扣血都計入總傷害 · 最高門檻扣至 0 HP</span></div>
   <div class="boss-milestones" id="bossMilestones"><div class="milestone base unlocked"><i class="tier-jewel">✦</i><span>起始獎勵</span><strong>170 元儲值卡</strong><small>初始解鎖</small></div><div class="milestone"><i class="tier-jewel">✧</i><span>第一階段</span><strong>490 元儲值卡</strong><small>等待達成</small></div><div class="milestone"><i class="tier-jewel">◆</i><span>第二階段</span><strong>紫色籤子</strong><small>等待達成</small></div><div class="milestone final"><i class="tier-jewel">♛</i><span>🏆 最終討伐獎勵</span><strong>990 元儲值卡</strong><small>HP 歸零解鎖</small></div></div>
-  <div class="boss-stats"><span>累積造成傷害：<strong id="pool">0</strong></span><span>完成抽獎：<strong id="progress">0 / 0</strong></span><span>虛寶：<strong id="items">3 / 6 顆</strong></span><span>目前級距：<strong id="tier">170 元儲值卡</strong></span></div>
+  <div class="boss-stats"><span>累積造成傷害：<strong id="pool">0</strong></span><span>完成抽獎：<strong id="progress">0 / 0</strong></span><span>天賞石：<strong id="items">3 / 6 顆</strong></span><span>目前級距：<strong id="tier">170 元儲值卡</strong></span></div>
 </section>
 <div id="mainWheelOverlay" class="main-wheel-overlay hidden" role="region" aria-label="主輪盤區"><section id="mainWheelModal" class="card main-wheel-dialog" role="dialog" tabindex="-1" aria-label="本回合主輪盤"><div class="wheel-modal-header"><h2>✦ 本回合 · 主輪盤</h2><span id="wheelTurnName" class="wheel-turn-name">等待玩家</span></div><div class="wheelbox"><div class="wheel-aura"></div><div class="pointer"></div><canvas id="mainWheel" width="600" height="600"></canvas><div class="wheelhub">抽獎<small>✦</small></div></div><div id="status" class="status">準備好了嗎？每人只能抽一次。</div><button id="spinBtn" class="btn">開始抽獎</button><div class="hint">六種傷害值固定，抽中機率依房間人數動態調整，擊中 BOSS 後扣血<br>抽獎結果由伺服器決定，每人限抽一次</div></section>
 </div>
@@ -203,7 +250,7 @@ body:not(:has(#join:not(.hidden)))::before{content:"";position:fixed;inset:0;poi
 <section class="card history-wide"><h2>✦ 最近抽獎紀錄 <span class="record-flourish">✧ 每一擊都是我們的榮耀 ✧</span></h2><div id="history" class="log"><div class="empty">尚無抽獎紀錄</div></div></section></main></div>
 <div id="fortuneIntro" class="fortune-overlay hidden" role="dialog" aria-modal="true" aria-label="福運已現">
 <div class="fortune-scene"><div class="fortune-art"></div><i class="fortune-shard a"></i><i class="fortune-shard b"></i><i class="fortune-shard c"></i><i class="fortune-shard d"></i><h2 class="fortune-heading">福運已現</h2><div class="fortune-footer"><p>天降奇緣 · 隱藏福運即將揭曉</p><button id="revealFortune" class="fortune-open">✦ 揭曉福運 ✦</button></div></div></div>
-<section id="specialCard" class="special-modal hidden"><div class="special-modal-inner"><span class="specialbadge">SPECIAL EVENT · 15%</span><h2 class="specialtitle">✨ 特殊事件輪盤</h2><div class="wheelbox"><div class="pointer"></div><canvas id="specialWheel" width="600" height="600"></canvas><div class="wheelhub">BONUS</div></div><div id="specialStatus" class="status">特殊事件觸發！</div><button id="startSpecialBtn" class="btn" disabled>等待本回合玩家開始特殊輪盤…</button><div class="hint">解鎖天賞石 40%・+1,000 傷害 30%・+2,000 傷害 20%・+3,000 傷害 10%</div></div></section><div id="stoneReveal" class="stone-reveal hidden" role="dialog" aria-label="鑑石獲得"><img src="/stone-reveal.png" alt="鑑石獲得：天賞石解鎖" /></div><div id="result" class="result hidden"><div class="resultbox"><h2 id="resultTitle">本次抽獎結果</h2><div id="resultMain" class="resultmain"></div><div id="resultSub" class="resultsub"></div><button id="closeResult" class="btn">知道了</button></div></div><div id="conn" class="conn hidden">連線中斷，重新連線中…</div>
+<section id="specialCard" class="special-modal hidden"><div class="special-modal-inner"><span class="specialbadge"></span><h2 class="specialtitle">✨ 特殊事件輪盤</h2><div class="wheelbox"><div class="pointer"></div><canvas id="specialWheel" width="600" height="600"></canvas><div class="wheelhub">BONUS</div></div><div id="specialStatus" class="status">特殊事件觸發！</div><button id="startSpecialBtn" class="btn" disabled>等待本回合玩家開始特殊輪盤…</button><div class="hint">解鎖天賞石 40%・+1,000 傷害 ・+2,000 傷害 ・+3,000 傷害 </div></div></section><div id="stoneReveal" class="stone-reveal hidden" role="dialog" aria-label="鑑石獲得"><img src="/stone-reveal.png" alt="鑑石獲得：天賞石解鎖" /></div><div id="result" class="result hidden"><div class="resultbox"><h2 id="resultTitle">本次抽獎結果</h2><div id="resultMain" class="resultmain"></div><div id="resultSub" class="resultsub"></div><button id="closeResult" class="btn">知道了</button></div></div><div id="conn" class="conn hidden">連線中斷，重新連線中…</div>
 <script>
 const $=id=>document.getElementById(id);let ws,me=null,room=null,S=null,token=localStorage.getItem('wheel_token')||crypto.randomUUID(),rotMain=0,rotSpecial=0,animating=false,drawn=false,lastResult=null,pendingSpecial=null,fortunePlayer=null,stoneRevealTimer=null,stoneRevealUntil=0;localStorage.setItem('wheel_token',token);let mainLabels=['60 分','300 分','980 分','1,980 分','3,280 分','6,480 分'];const specialLabels=['解鎖天賞石','+1,000 傷害','+2,000 傷害','+3,000 傷害'];const mainColors=['#b69aff','#9272e8','#7152c5','#5a439f','#d5baff','#a184ee'];const specialColors=['#c4a4ff','#8e6bd8','#6944aa','#b38ae9'];let wantJoin=null,host=false;
 function connect(){const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(proto+'://'+location.host);ws.onopen=()=>{$('conn').classList.add('hidden');if(wantJoin)send({type:'join',...wantJoin,token});};ws.onclose=()=>{if(wantJoin){$('conn').classList.remove('hidden');setTimeout(connect,1500);}};ws.onmessage=e=>{try{handle(JSON.parse(e.data));}catch(err){console.error(err)}}}function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
@@ -252,8 +299,8 @@ function render(){if(!S)return;renderRoom();$('pool').textContent=S.pool.toLocal
 function syncMainWheelModal(){
  const el=$('mainWheelOverlay');if(!el)return;
  const active=!!S?.started&&!!S?.currentTurn && !!S?.players?.some(p=>p.name===S.currentTurn&&!p.drawn);
- el.classList.toggle('hidden',!active);
- if(active)$('wheelTurnName').textContent=S.currentTurn===me?'🎯 輪到你抽獎':'🎯 '+S.currentTurn+' 的回合';
+ el.classList.remove('hidden');
+ $('wheelTurnName').textContent=active?(S.currentTurn===me?'🎯 輪到你抽獎':'🎯 '+S.currentTurn+' 的回合'):'✦ 等待下一場討伐';
 }
 function updateSpinButton(){syncMainWheelModal();if(!me)return;if(!S){$('spinBtn').disabled=true;$('spinBtn').textContent='等待房間資料…';return;}const p=S?.players.find(p=>p.name===me);drawn=drawn||!!p?.drawn;const myTurn=!!S&&S.currentTurn===me;const allowed=S.started&&(myTurn||host)&&!animating&&!S?.spinning&&!(!host&&drawn);$('spinBtn').disabled=!allowed;$('spinBtn').textContent=!S.started?'等待主持人開始':drawn&&!host?'已完成抽獎':!S?'等待連線':!S.currentTurn?'活動已結束':(myTurn||host)?(S.spinning?'抽獎進行中…':host&&!myTurn?'👑 代替 '+S.currentTurn+' 抽獎':'開始抽獎'):'等待 '+S.currentTurn+' 抽獎';if(!S?.spinning&&(!drawn||host))$('status').textContent=myTurn?'現在輪到你！請按下開始抽獎':'目前輪到 '+(S.currentTurn||'無')+'，請等待你的回合';}
 function drawWheel(which){
@@ -288,7 +335,7 @@ function animateWheel(which,index,duration,done){
   if(p<1)requestAnimationFrame(frame);else{if(which==='main')rotMain=((end%TWO)+TWO)%TWO;else rotSpecial=((end%TWO)+TWO)%TWO;drawWheel(which);animating=false;done?.();updateSpinButton();}}
  requestAnimationFrame(frame);
 }
-$('startSpecialBtn').onclick=()=>{if(fortunePlayer!==me&&!host)return;$('startSpecialBtn').disabled=true;$('startSpecialBtn').textContent='輪盤啟動中…';send({type:'startSpecial'});};$('revealFortune').onclick=()=>{if(fortunePlayer!==me&&!host)return;$('revealFortune').disabled=true;$('revealFortune').textContent='福運揭曉中…';send({type:'revealSpecial'});};$('startGameBtn').onclick=()=>{if(host&&S&&!S.started&&confirm('開始後將鎖定登記人數、BOSS 血量、抽獎機率，確定開始？'))send({type:'startGame'});};$('spinBtn').onclick=()=>{if((drawn&&!host)||animating||!S||!S.started||(S.currentTurn!==me&&!host)||S.spinning)return;$('spinBtn').disabled=true;$('status').textContent='正在提交抽獎…';send({type:'spin'})};function showFinal(r,open){$('resultTitle').textContent='本次抽獎結果';$('resultMain').textContent=r.mainScore.toLocaleString()+' 分';$('resultSub').textContent=r.specialTriggered?'特殊事件：'+(r.specialResult||'已觸發')+'\n共享獎池：'+r.pool.toLocaleString()+' 分\n目前虛寶：'+r.virtualItems+' 顆':'本次未觸發特殊事件\n共享獎池：'+r.pool.toLocaleString()+' 分\n目前虛寶：'+r.virtualItems+' 顆';if(open)$('result').classList.remove('hidden')}$('closeResult').onclick=()=>{if(lastResult?.player===me||host)send({type:'ackResult'});$('result').classList.add('hidden')};
+$('startSpecialBtn').onclick=()=>{if(fortunePlayer!==me&&!host)return;$('startSpecialBtn').disabled=true;$('startSpecialBtn').textContent='輪盤啟動中…';send({type:'startSpecial'});};$('revealFortune').onclick=()=>{if(fortunePlayer!==me&&!host)return;$('revealFortune').disabled=true;$('revealFortune').textContent='福運揭曉中…';send({type:'revealSpecial'});};$('startGameBtn').onclick=()=>{if(host&&S&&!S.started&&confirm('開始後將鎖定登記人數、BOSS 血量、抽獎機率，確定開始？'))send({type:'startGame'});};$('spinBtn').onclick=()=>{if((drawn&&!host)||animating||!S||!S.started||(S.currentTurn!==me&&!host)||S.spinning)return;$('spinBtn').disabled=true;$('status').textContent='正在提交抽獎…';send({type:'spin'})};function showFinal(r,open){$('resultTitle').textContent='本次抽獎結果';$('resultMain').textContent=r.mainScore.toLocaleString()+' 分';$('resultSub').textContent=r.specialTriggered?'特殊事件：'+(r.specialResult||'已觸發')+'\n共享獎池：'+r.pool.toLocaleString()+' 分\n目前天賞石：'+r.virtualItems+' 顆':'本次未觸發特殊事件\n共享獎池：'+r.pool.toLocaleString()+' 分\n目前天賞石：'+r.virtualItems+' 顆';if(open)$('result').classList.remove('hidden')}$('closeResult').onclick=()=>{if(lastResult?.player===me||host)send({type:'ackResult'});$('result').classList.add('hidden')};
 
 if(new URLSearchParams(location.search).has('preview') && ['localhost','127.0.0.1'].includes(location.hostname)){
  $('join').classList.add('hidden');$('app').classList.remove('hidden');me='小白';host=true;
