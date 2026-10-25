@@ -119,11 +119,17 @@ const server=http.createServer((req,res)=>{
  const url=(req.url||'/').split('?')[0];
  if(url==='/healthz'){res.writeHead(200);return res.end('ok');}
  if(url==='/version'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});return res.end(JSON.stringify({version:APP_VERSION,ui:'boss-battle',dynamicProbability:true}));}
- const name={'/':'index.html','/index.html':'index.html','/fortune-character.png':'fortune-character.png','/boss-background.png':'boss-background.png','/stone-reveal.png':'stone-reveal.png'}[url];
- if(!name){res.writeHead(404);return res.end('not found');}
+ // Serve only known public assets; prevent arbitrary file/path traversal access.
+ const publicAssets = new Set([
+  'index.html', 'fortune-character.png', 'boss-background.png', 'stone-reveal.png',
+  'login-scene.png', 'login-background.jpg', 'login-background.png',
+  'castle-scene.webp', 'original-character-banner.webp', 'original-character.png'
+ ]);
+ const name = url === '/' ? 'index.html' : decodeURIComponent(url).replace(/^\//, '');
+ if (!publicAssets.has(name)) { res.writeHead(404); return res.end('not found'); }
  fs.readFile(path.join(__dirname,'public',name),(e,data)=>{
   if(e){res.writeHead(500);return res.end('server error');}
-  res.writeHead(200,{'Content-Type':name.endsWith('.png')?'image/png':'text/html; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Pragma':'no-cache','X-App-Version':APP_VERSION});res.end(data);
+  res.writeHead(200,{'Content-Type':name.endsWith('.png')?'image/png':name.endsWith('.jpg')?'image/jpeg':name.endsWith('.webp')?'image/webp':'text/html; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Pragma':'no-cache','X-App-Version':APP_VERSION});res.end(data);
  });
 });
 const wss=new WebSocketServer({server,maxPayload:16384});
