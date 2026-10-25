@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 const APP_VERSION = 'boss-host-lock-v6';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
-const SPIN_MS = 6000;
+const SPIN_MS = 4000;
 const SPIN_GRACE_MS = 350;
 const DATA_FILE = path.join(__dirname, 'data.json');
 const MAIN = [
