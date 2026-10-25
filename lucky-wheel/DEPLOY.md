@@ -21,3 +21,10 @@
 - 在部署平台重新部署最新上傳版本並清除 CDN/瀏覽器快取。
 - 打開 `/version` 檢查版本，若不是 v3，請檢查部署分支、Root Directory、Start Command、服務網址。
 - 不要直接刪除正式環境的 `data.json`，它保存玩家與抽獎紀錄。
+
+
+V4: 主輪盤改為 BOSS 區塊下方的獨立浮動視窗，輪到玩家時自動顯示；不覆蓋 BOSS 血條。
+
+
+## v5 BOSS 背景
+使用 public/boss-background.png（使用者提供的原圖）。主輪盤保留 v4 獨立浮動卡片，位於 BOSS 血條與獎勵下方，不遮擋血條。
