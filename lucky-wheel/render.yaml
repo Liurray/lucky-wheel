@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cat-sleep-lucky-wheel
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST_INVITE_CODE
+        sync: false

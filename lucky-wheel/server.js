@@ -4,12 +4,14 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'boss-purple-final-chase-v12';
+const APP_VERSION = 'cat-mom-phase2-v1';
 // Set a private invite code in the server environment; never send it to browsers.
 const HOST_INVITE_CODE = process.env.HOST_INVITE_CODE || 'L4ACGQE7F';
 const SPIN_MS = 4000;
 const SPIN_GRACE_MS = 350;
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
+const SKILLS=[['大夢群體','夢境封印',250,900000,25000],['龍哥群體','狂龍破天',350,1200000,60000],['幼幼班群體','幼崽暴走',450,1500000,100000],['CC','天降審判',550,1800000,145000],['曜日','曜日終焉',650,2100000,190000],['小旻','終極殲滅大砲',800,0,235000]];
+const newBattle=()=>({phase:'roulette',hp:10000000,maxHp:10000000,skillIndex:0,energy:0,hits:0,paused:false,startedAt:0,skillAt:0,sceneAt:0,version:0,endingAt:0});
 const MAIN = [
   { score: 60, weight: 15 }, { score: 300, weight: 25 }, { score: 980, weight: 25 },
   { score: 1980, weight: 20 }, { score: 3280, weight: 12 }, { score: 6480, weight: 3 }
@@ -84,16 +86,16 @@ try {
       draws: old.draws && typeof old.draws === 'object' ? old.draws : {},
       history: Array.isArray(old.history) ? old.history : [], pool: Number(old.pool) || 0,
       virtualItems: Number.isInteger(old.virtualItems) ? old.virtualItems : INITIAL_ITEMS,
-      queue: [], banned: Array.isArray(old.banned)?old.banned:[], bannedNames: Array.isArray(old.bannedNames)?old.bannedNames:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null, chaseActivated:!!old.chaseActivated
+      queue: [], banned: Array.isArray(old.banned)?old.banned:[], bannedNames: Array.isArray(old.bannedNames)?old.bannedNames:[], processing: false, spinning: false, started:!!old.started, lockedCount:old.lockedCount||null, lockedThresholds:old.lockedThresholds||null, lockedWheel:old.lockedWheel||null, lockedRoster:Array.isArray(old.lockedRoster)?old.lockedRoster:null, chaseActivated:!!old.chaseActivated, battle:old.battle||newBattle()
     });
   }
 } catch {}
 function getRoom(code) {
-  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], bannedNames: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null, chaseActivated:false });
+  if (!rooms.has(code)) rooms.set(code, { players: [], draws: {}, history: [], pool: 0, virtualItems: INITIAL_ITEMS, queue: [], banned: [], bannedNames: [], processing: false, spinning: false, started:false, lockedCount:null, lockedThresholds:null, lockedWheel:null, lockedRoster:null, chaseActivated:false, battle:newBattle() });
   return rooms.get(code);
 }
 let saveTimer;
-function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,bannedNames:r.bannedNames,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster,chaseActivated:r.chaseActivated}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { fs.writeFileSync(DATA_FILE, JSON.stringify(Object.fromEntries([...rooms].map(([k,r]) => [k,{players:r.players,draws:r.draws,history:r.history,pool:r.pool,virtualItems:r.virtualItems,banned:r.banned,bannedNames:r.bannedNames,started:r.started,lockedCount:r.lockedCount,lockedThresholds:r.lockedThresholds,lockedWheel:r.lockedWheel,lockedRoster:r.lockedRoster,chaseActivated:r.chaseActivated,battle:r.battle}])))); } catch(e) { console.error('save failed', e.message); } }, 100); }
 const conns = new Map();
 const timing = new Map();
 function online(code, name) { for (const c of conns.values()) if (c.room === code && c.name === name) return true; return false; }
@@ -111,8 +113,24 @@ function snapshot(code) {
   const count = r.started ? r.lockedCount : players.length; const nextPlayer = r.started ? (r.lockedRoster||[]).map(name=>players.find(p=>p.name===name)).find(p=>p&&!p.drawn) : null; const limits = r.started ? r.lockedThresholds : thresholds(count); const chase=chaseStatus(r); const tier = currentTier(r.pool, count, limits), budget = affordableTier(r.pool, r.virtualItems, count, limits);
   return { type:'state', room:code, players, pool:r.pool, virtualItems:r.virtualItems, initialVirtualItems:INITIAL_ITEMS, maxVirtualItems:MAX_ITEMS,
     completed:players.filter(p=>p.drawn).length, total:count, registered:players.length, started:r.started, lockedCount:r.lockedCount, currentTurn:nextPlayer?.name||null, turnNumber:nextPlayer?players.indexOf(nextPlayer)+1:null, thresholds:limits, tier, affordableTier:budget.final, estimatedCost:budget.cost, withinBudget:budget.withinBudget,
-    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:r.started?(chase.active?chase.mainWheel:r.lockedWheel):mainWheelFor(count), chaseMode:chase.active, chaseTarget:chase.target||null, probabilityFactor:PROBABILITY_FACTOR, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE };
+    history:r.history.slice(0,30), spinning:r.spinning, mainWheel:r.started?(chase.active?chase.mainWheel:r.lockedWheel):mainWheelFor(count), chaseMode:chase.active, chaseTarget:chase.target||null, probabilityFactor:PROBABILITY_FACTOR, specialWheel:SPECIAL, specialChance:SPECIAL_CHANCE, battle:r.battle, skills:SKILLS.map(([group,name,required,damage])=>({group,name,required,damage})), serverNow:Date.now() };
 }
+function allDrawn(r){return r.started&&r.lockedRoster?.length>0&&r.lockedRoster.every(n=>!!r.draws[n])&&!r.processing&&!r.spinning;}
+function advanceBattle(code,r){const b=r.battle;if(b.phase==='awakening'){b.phase='battle';b.startedAt=Date.now();b.sceneAt=Date.now();}else if(b.phase==='skill'){if(b.skillIndex===5){b.hp=1;b.phase='comic';b.sceneAt=Date.now();}else{b.skillIndex++;b.energy=0;b.phase='battle';b.sceneAt=Date.now();}}else if(b.phase==='comic'){b.phase='reward';b.sceneAt=Date.now();}else if(b.phase==='reward'){b.phase='ending';b.sceneAt=Date.now();}b.version++;save();broadcast(code);}
+function beginSkill(code,r){const b=r.battle;if(b.phase!=='battle'||b.skillIndex>=SKILLS.length)return;const skill=SKILLS[b.skillIndex];b.phase='skill';b.skillAt=Date.now();b.sceneAt=b.skillAt;b.hp=b.skillIndex===5?1:Math.max([8000000,6500000,4800000,3000000,1200000][b.skillIndex],b.hp-skill[3]);b.version++;save();broadcast(code);}
+function hostBattle(ws,c,r,m){if(!c.host)return send(ws,{type:'error',message:'僅主持人可操作劇情'});const b=r.battle,action=m.action;
+ if(action==='start'){if(b.phase!=='roulette'||!allDrawn(r))return send(ws,{type:'error',message:'請等待所有玩家完成輪盤抽獎'});b.phase='awakening';b.sceneAt=Date.now();}
+ else if(action==='pause'){b.paused=!b.paused;}
+ else if(action==='next'){if(b.phase==='roulette')return; if(b.phase==='battle')beginSkill(c.room,r);else advanceBattle(c.room,r);return;}
+ else if(action==='fill'){if(b.phase!=='battle')return;b.energy=SKILLS[b.skillIndex][2];}
+ else if(action==='fire'){if(b.phase!=='battle'||b.skillIndex!==5||b.energy<SKILLS[5][2])return;beginSkill(c.room,r);return;}
+ else if(action==='replay'){if(!['awakening','skill','comic','ending'].includes(b.phase))return;b.sceneAt=Date.now();}
+ else return;
+ b.version++;save();broadcast(c.room);
+}
+const attackRates=new Map();
+function attack(ws,c,r,m){const b=r.battle;if(b.phase!=='battle'||b.paused)return;const key=c.room+':'+c.name;const now=Date.now();const prev=attackRates.get(key)||{at:now,tokens:5};const elapsed=Math.max(0,now-prev.at);prev.tokens=Math.min(5,prev.tokens+elapsed*0.005);prev.at=now;const count=Math.max(0,Math.min(10,Math.floor(Number(m.count)||0),Math.floor(prev.tokens)));if(!count)return;prev.tokens-=count;attackRates.set(key,prev);b.hits+=count;b.energy=Math.min(SKILLS[b.skillIndex][2],b.energy+count);const floors=[8000000,6500000,4800000,3000000,1200000,1];b.hp=Math.max(floors[b.skillIndex],b.hp-count*1000);}
+setInterval(()=>{for(const [code,r] of rooms){const b=r.battle;if(!b||b.paused)continue;const now=Date.now();if(b.phase==='awakening'&&now-b.sceneAt>=30000)advanceBattle(code,r);else if(b.phase==='skill'&&now-b.sceneAt>=(b.skillIndex===5?12000:8000))advanceBattle(code,r);else if(b.phase==='battle'){const sk=SKILLS[b.skillIndex],elapsed=now-b.startedAt;if(elapsed>=sk[4]+20000)b.energy=sk[2];if(b.energy>=sk[2]&&elapsed>=sk[4]&&b.skillIndex<5)beginSkill(code,r);}else if(b.phase==='comic'&&now-b.sceneAt>=45000)advanceBattle(code,r);else if(b.phase==='battle'){} if(['battle','skill','awakening','comic','reward','ending'].includes(b.phase))broadcast(code);}},250);
 function broadcast(code, msg) { const data=JSON.stringify(msg || snapshot(code)); for(const [ws,c] of conns) if(c.room===code && ws.readyState===1) ws.send(data); }
 function send(ws,msg){ if(ws.readyState===1) ws.send(JSON.stringify(msg)); }
 const server=http.createServer((req,res)=>{
@@ -178,6 +196,6 @@ function kickPlayer(ws,m,c,r){
   for(const [client,info] of conns){if(info.room===c.room&&info.name===name){send(client,{type:'kicked',message:'你已被主持人移出房間'});conns.delete(client);client.close(4001,'Removed by host');}}
   save();broadcast(c.room);
 }
-wss.on('connection',ws=>{ws.on('error',()=>{});ws.on('message',raw=>{try{const m=JSON.parse(raw);if(!m||typeof m!=='object')return;if(m.type==='join')return join(ws,m);const c=conns.get(ws);if(!c)return;const r=rooms.get(c.room);if(!r)return;if(m.type==='hostLogin')hostLogin(ws,m,c);else if(m.type==='startGame'){if(!c.host)return send(ws,{type:'error',message:'只有主持人可以開始活動'});if(r.started)return send(ws,{type:'error',message:'活動已開始'});if(!r.players.length)return send(ws,{type:'error',message:'尚無登記玩家'});r.lockedCount=r.players.length;r.lockedThresholds=thresholds(r.lockedCount);r.lockedWheel=mainWheelFor(r.lockedCount);r.lockedRoster=r.players.map(p=>p.name);r.chaseActivated=false;r.started=true;save();broadcast(c.room,{type:'gameStarted',count:r.lockedCount});broadcast(c.room);}else if(m.type==='kickPlayer')kickPlayer(ws,m,c,r);else if(m.type==='spin')spin(ws,c,r);else if(m.type==='revealSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.reveal?.();else if(m.type==='startSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.startSpecial?.();else if(m.type==='ackResult'&&(r.activeJob?.name===c.name||c.host)&&r.activeJob.awaitingAck)r.activeJob&&r.activeJob.finishAck?.();else if(m.type==='clearHistory'&&m.admin===true){r.history=[];save();broadcast(c.room);}}catch(e){console.error('message handling failed',e);}});ws.on('close',()=>{const c=conns.get(ws);conns.delete(ws);if(c)broadcast(c.room);});});
+wss.on('connection',ws=>{ws.on('error',()=>{});ws.on('message',raw=>{try{const m=JSON.parse(raw);if(!m||typeof m!=='object')return;if(m.type==='join')return join(ws,m);const c=conns.get(ws);if(!c)return;const r=rooms.get(c.room);if(!r)return;if(m.type==='hostLogin')hostLogin(ws,m,c);else if(m.type==='startGame'){if(!c.host)return send(ws,{type:'error',message:'只有主持人可以開始活動'});if(r.started)return send(ws,{type:'error',message:'活動已開始'});if(!r.players.length)return send(ws,{type:'error',message:'尚無登記玩家'});r.lockedCount=r.players.length;r.lockedThresholds=thresholds(r.lockedCount);r.lockedWheel=mainWheelFor(r.lockedCount);r.lockedRoster=r.players.map(p=>p.name);r.chaseActivated=false;r.started=true;save();broadcast(c.room,{type:'gameStarted',count:r.lockedCount});broadcast(c.room);}else if(m.type==='battleHost')hostBattle(ws,c,r,m);else if(m.type==='battleAttack')attack(ws,c,r,m);else if(m.type==='kickPlayer')kickPlayer(ws,m,c,r);else if(m.type==='spin')spin(ws,c,r);else if(m.type==='revealSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.reveal?.();else if(m.type==='startSpecial'&&(r.activeJob?.name===c.name||c.host))r.activeJob.startSpecial?.();else if(m.type==='ackResult'&&(r.activeJob?.name===c.name||c.host)&&r.activeJob.awaitingAck)r.activeJob&&r.activeJob.finishAck?.();else if(m.type==='clearHistory'&&m.admin===true){r.history=[];save();broadcast(c.room);}}catch(e){console.error('message handling failed',e);}});ws.on('close',()=>{const c=conns.get(ws);conns.delete(ws);if(c)broadcast(c.room);});});
 setInterval(()=>{for(const ws of wss.clients){if(ws.readyState===1)ws.ping();}},25000);
 server.listen(PORT,()=>console.log(`Lucky wheel listening on ${PORT}`));
